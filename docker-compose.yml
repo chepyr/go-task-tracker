@@ -1,14 +1,47 @@
-version: '3.8'
+version: '3.8' # Docker Compose version for compatibility with modern Docker
+
 services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+  postgres: # Postgres service for the database
+    image: postgres:15 # Use Postgres 15 image, matching your tech stack
+    environment: # Environment variables for Postgres
+      POSTGRES_USER: ${POSTGRES_USER} # Database user (from .env, e.g., postgres)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} # Database password (from .env, e.g., pass)
+      POSTGRES_DB: ${POSTGRES_DB} # Database name (from .env, e.g., task_tracker)
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:5432" # Map host port (from .env, e.g., 5432) to container port 5432
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data # Persist database data in a named volume
+    healthcheck: # Ensure Postgres is ready before auth-service connects
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network # Connect to a custom network for communication with auth-service
+
+  auth-service: # Auth service for running the Go application
+    build:
+      context: . # Build context is the root directory (contains go.mod, auth/, internal/)
+      dockerfile: auth/Dockerfile # Use Dockerfile in auth/ directory
+    ports:
+      - "${SERVER_PORT}:8081" # Map host port (from .env, e.g., 8081) to container port 8081
+    environment: # Environment variables for the auth service
+      - POSTGRES_HOST=postgres # Connect to Postgres service by its name
+      - POSTGRES_USER=${POSTGRES_USER} # Pass user from .env
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} # Pass password from .env
+      - POSTGRES_DB=${POSTGRES_DB} # Pass database name from .env
+      - POSTGRES_PORT=5432 # Postgres port inside the container
+      - SERVER_PORT=8081 # Auth service port (matches .env)
+      - JWT_SECRET=${JWT_SECRET} # JWT secret for signing tokens in /login
+    depends_on:
+      postgres: # Ensure Postgres is healthy before starting auth-service
+        condition: service_healthy
+    networks:
+      - app-network # Connect to the same network as Postgres
+
 volumes:
-  pgdata:
+  pgdata: # Named volume for persisting Postgres data
+
+networks:
+  app-network: # Custom bridge network for service communication
+    driver: bridge

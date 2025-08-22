@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"net/mail"
+	"regexp"
 	"time"
 
 	"github.com/chepyr/go-task-tracker/internal/db"
@@ -19,10 +19,11 @@ type Handler struct {
 	RateLimiter *RateLimiter
 }
 
-func (handler *Handler) Register(window http.ResponseWriter, request *http.Request) {
+func (handler *Handler) Register(writer http.ResponseWriter, request *http.Request) {
+	log.Printf("!!!!!!!!!! 1) Register attempt for email")
 	if request.Method != http.MethodPost {
 		log.Printf("Invalid method for register: %s", request.Method)
-		sendError(window, "Use POST method", http.StatusMethodNotAllowed)
+		sendError(writer, "Use POST method", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -32,18 +33,18 @@ func (handler *Handler) Register(window http.ResponseWriter, request *http.Reque
 	}
 	if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
 		log.Printf("Error decoding JSON: %v", err)
-		sendError(window, "Bad JSON", http.StatusBadRequest)
+		sendError(writer, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 
-	if !validateUserInput(input, window) {
+	if !validateUserEmailAndPassword(input, writer) {
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
-		sendError(window, "Cannot hash password", http.StatusInternalServerError)
+		sendError(writer, "Cannot hash password", http.StatusInternalServerError)
 		return
 	}
 
@@ -56,38 +57,45 @@ func (handler *Handler) Register(window http.ResponseWriter, request *http.Reque
 	}
 
 	if err := handler.UserRepo.Create(context.Background(), user); err != nil {
-		sendError(window, "Cannot save user", http.StatusInternalServerError)
+		sendError(writer, "Cannot save user", http.StatusInternalServerError)
 		return
 	}
 
-	window.Header().Set("Content-Type", "application/json")
-	window.WriteHeader(http.StatusCreated)
-	json.NewEncoder(window).Encode(map[string]any{
+	log.Printf("User registered: %s", user.Email)
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusCreated)
+	json.NewEncoder(writer).Encode(map[string]any{
 		"user_id": user.ID,
 		"email":   user.Email,
 	})
-	log.Printf("User registered: %s", user.Email)
+
 }
 
-func validateUserInput(input struct {
+func validateUserEmailAndPassword(input struct {
 	Email    string "json:\"email\""
 	Password string "json:\"password\""
-}, window http.ResponseWriter) bool {
+}, writer http.ResponseWriter) bool {
+
+	log.Printf("Validating email and password: %s", input.Email)
 
 	if !isValidEmail(input.Email) {
 		log.Printf("Invalid email format: %s", input.Email)
-		sendError(window, "Invalid email", http.StatusBadRequest)
-		return true
+		sendError(writer, "Invalid email", http.StatusBadRequest)
+		return false
 	}
 	if len(input.Password) < 4 {
 		log.Printf("Password too short: %s", input.Password)
-		sendError(window, "Password must be at least 4 characters long", http.StatusBadRequest)
-		return true
+		sendError(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
+		return false
 	}
-	return false
+	return true
 }
 
 func isValidEmail(email string) bool {
-	_, err := mail.ParseAddress(email)
-	return err == nil
+	// _, err := mail.ParseAddress(email)
+	// return err == nil
+
+	const emailRegex = `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	re := regexp.MustCompile(emailRegex)
+	return re.MatchString(email)
 }
