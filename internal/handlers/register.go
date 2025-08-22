@@ -3,7 +3,9 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
+	"net/mail"
 	"time"
 
 	"github.com/chepyr/go-task-tracker/internal/db"
@@ -13,12 +15,14 @@ import (
 )
 
 type Handler struct {
-	UserRepo *db.UserRepository
+	UserRepo    *db.UserRepository
+	RateLimiter *RateLimiter
 }
 
-func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		sendError(w, "Use POST method", http.StatusMethodNotAllowed)
+func (handler *Handler) Register(window http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodPost {
+		log.Printf("Invalid method for register: %s", request.Method)
+		sendError(window, "Use POST method", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -26,20 +30,20 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		sendError(w, "Bad JSON", http.StatusBadRequest)
+	if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+		log.Printf("Error decoding JSON: %v", err)
+		sendError(window, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Валидация
-	if input.Email == "" || len(input.Password) < 4 {
-		sendError(w, "Invalid email or password (min length 8)", http.StatusBadRequest)
+	if !validateUserInput(input, window) {
 		return
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
-		sendError(w, "Cannot hash password", http.StatusInternalServerError)
+		log.Printf("Error hashing password: %v", err)
+		sendError(window, "Cannot hash password", http.StatusInternalServerError)
 		return
 	}
 
@@ -51,15 +55,39 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:    time.Now(),
 	}
 
-	if err := h.UserRepo.Create(context.Background(), user); err != nil {
-		sendError(w, "Cannot save user", http.StatusInternalServerError)
+	if err := handler.UserRepo.Create(context.Background(), user); err != nil {
+		sendError(window, "Cannot save user", http.StatusInternalServerError)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	window.Header().Set("Content-Type", "application/json")
+	window.WriteHeader(http.StatusCreated)
+	json.NewEncoder(window).Encode(map[string]any{
 		"user_id": user.ID,
 		"email":   user.Email,
 	})
+	log.Printf("User registered: %s", user.Email)
+}
+
+func validateUserInput(input struct {
+	Email    string "json:\"email\""
+	Password string "json:\"password\""
+}, window http.ResponseWriter) bool {
+
+	if !isValidEmail(input.Email) {
+		log.Printf("Invalid email format: %s", input.Email)
+		sendError(window, "Invalid email", http.StatusBadRequest)
+		return true
+	}
+	if len(input.Password) < 4 {
+		log.Printf("Password too short: %s", input.Password)
+		sendError(window, "Password must be at least 4 characters long", http.StatusBadRequest)
+		return true
+	}
+	return false
+}
+
+func isValidEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }
