@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"log"
 	"testing"
 
 	"github.com/chepyr/go-task-tracker/internal/models"
@@ -33,7 +34,11 @@ func setupTestDB(t *testing.T) *sql.DB {
 
 func TestUserRepository_Create(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
 
 	repo := NewUserRepository(db)
 	user := &models.User{
@@ -60,7 +65,11 @@ func TestUserRepository_Create(t *testing.T) {
 
 func TestUserRepository_GetByEmail(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
 
 	repo := NewUserRepository(db)
 	user := &models.User{
@@ -96,7 +105,11 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 
 func TestUserRepository_GetByEmail_NotFound(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
 
 	repo := NewUserRepository(db)
 	_, err := repo.GetByEmail(context.Background(), "nonexistent@example.com")

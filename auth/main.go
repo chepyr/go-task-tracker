@@ -24,7 +24,13 @@ func main() {
 
 	validateEnv()
 	dbConn := initDB()
-	defer dbConn.Close()
+
+	defer func() {
+		if err := dbConn.Close(); err != nil {
+			log.Printf("Error closing database connection: %v", err)
+		}
+	}()
+
 	initHandlers(dbConn)
 
 	server := initServer()
