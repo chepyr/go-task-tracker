@@ -4,8 +4,8 @@ import (
 	"database/sql"
 )
 
-func Connect(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", dsn)
+func Connect(driverName, dsn string) (*sql.DB, error) {
+	db, err := sql.Open(driverName, dsn)
 	if err != nil {
 		return nil, err
 	}

@@ -2,3 +2,6 @@
 *.exe
 *.log
 .env
+*.out
+*.test
+all_files.txt
