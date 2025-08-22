@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,39 +10,7 @@ import (
 	"testing"
 
 	"github.com/chepyr/go-task-tracker/internal/db"
-	"github.com/chepyr/go-task-tracker/internal/models"
 )
-
-type MockUserRepository struct {
-	createErr error
-	users     map[string]*models.User // for simulating existing users
-}
-
-func NewMockUserRepository() *MockUserRepository {
-	return &MockUserRepository{
-		users: make(map[string]*models.User),
-	}
-}
-
-func (m *MockUserRepository) Create(ctx context.Context, user *models.User) error {
-	if m.createErr != nil {
-		return m.createErr
-	}
-
-	if _, exists := m.users[user.Email]; exists {
-		return errors.New("unique violation: email already exists")
-	}
-	m.users[user.Email] = user
-	return nil
-}
-
-func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	user, exists := m.users[email]
-	if !exists {
-		return nil, errors.New("user not found")
-	}
-	return user, nil
-}
 
 // TestRegister tests the Register handler with various scenarios.
 // It uses table-driven tests to cover different cases like successful registration,
