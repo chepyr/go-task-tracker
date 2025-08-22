@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -39,7 +40,17 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(input.Password), []byte(input.Password)); err != nil {
+	// Retrieve user from the database
+	user, err := handler.UserRepo.GetByEmail(context.Background(), input.Email)
+	if err != nil {
+		log.Printf("Error retrieving user by email %s: %v", input.Email, err)
+		sendError(writer, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+
+	// Compare provided password with stored password hash
+	if err := bcrypt.CompareHashAndPassword(
+		[]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		log.Printf("Invalid password for email: %s", input.Email)
 		sendError(writer, "Invalid email or password", http.StatusUnauthorized)
 		return
@@ -56,7 +67,7 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 	writer.WriteHeader(http.StatusOK)
 	json.NewEncoder(writer).Encode(map[string]any{
 		"user_email": input.Email,
-		"user_id":    input.Email,
+		"user_id":    user.ID,
 		"token":      tokenString,
 	})
 	log.Printf("User logged in: %s", input.Email)
