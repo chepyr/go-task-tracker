@@ -8,19 +8,12 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/chepyr/go-task-tracker/internal/db"
 	"github.com/chepyr/go-task-tracker/internal/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
-type Handler struct {
-	UserRepo    *db.UserRepository
-	RateLimiter *RateLimiter
-}
-
 func (handler *Handler) Register(writer http.ResponseWriter, request *http.Request) {
-	log.Printf("!!!!!!!!!! 1) Register attempt for email")
 	if request.Method != http.MethodPost {
 		log.Printf("Invalid method for register: %s", request.Method)
 		sendError(writer, "Use POST method", http.StatusMethodNotAllowed)
@@ -75,8 +68,6 @@ func validateUserEmailAndPassword(input struct {
 	Email    string "json:\"email\""
 	Password string "json:\"password\""
 }, writer http.ResponseWriter) bool {
-
-	log.Printf("Validating email and password: %s", input.Email)
 
 	if !isValidEmail(input.Email) {
 		log.Printf("Invalid email format: %s", input.Email)

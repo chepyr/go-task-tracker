@@ -25,7 +25,8 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `INSERT INTO users (id, email, password_hash, created_at, updated_at)
 	 VALUES ($1, $2, $3, $4, $5)`
 
-	_, err := r.db.ExecContext(ctx, query, user.ID, user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
+	_, err := r.db.ExecContext(
+		ctx, query, user.ID, user.Email, user.PasswordHash, user.CreatedAt, user.UpdatedAt)
 	return err
 }
 

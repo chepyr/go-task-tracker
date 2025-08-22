@@ -5,7 +5,14 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/chepyr/go-task-tracker/internal/db"
 )
+
+type Handler struct {
+	UserRepo    db.UserRepositoryInterface
+	RateLimiter *RateLimiter
+}
 
 type errorResponse struct {
 	Error string `json:"error"`
