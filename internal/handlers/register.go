@@ -20,6 +20,13 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	clientIP := request.RemoteAddr
+	if handler.RateLimiter != nil && !handler.RateLimiter.Allow(clientIP) {
+		log.Printf("Rate limit exceeded for IP: %s", clientIP)
+		sendError(writer, "Too many register attempts. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
@@ -70,12 +77,12 @@ func validateUserEmailAndPassword(input struct {
 }, writer http.ResponseWriter) bool {
 
 	if !isValidEmail(input.Email) {
-		log.Printf("Invalid email format: %s", input.Email)
+		log.Printf("Invalid email format")
 		sendError(writer, "Invalid email", http.StatusBadRequest)
 		return false
 	}
 	if len(input.Password) < 4 {
-		log.Printf("Password too short: %s", input.Password)
+		log.Printf("Password too short")
 		sendError(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
 		return false
 	}
