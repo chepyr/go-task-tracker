@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/chepyr/go-task-tracker/internal/models"
+	"github.com/chepyr/go-task-tracker/shared/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )

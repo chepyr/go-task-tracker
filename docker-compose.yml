@@ -22,7 +22,7 @@ services:
   auth-service:
     build:
       context: .
-      dockerfile: auth/Dockerfile 
+      dockerfile: auth-service/Dockerfile 
     ports:
       - "${SERVER_PORT}:8081"
     environment: 

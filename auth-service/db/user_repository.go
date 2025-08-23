@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/chepyr/go-task-tracker/internal/models"
+	"github.com/chepyr/go-task-tracker/shared/models"
 )
 
 // defines methods for user db operations

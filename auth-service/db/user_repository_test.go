@@ -6,7 +6,7 @@ import (
 	"log"
 	"testing"
 
-	"github.com/chepyr/go-task-tracker/internal/models"
+	"github.com/chepyr/go-task-tracker/shared/models"
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )

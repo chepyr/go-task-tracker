@@ -6,12 +6,12 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY auth/ ./auth/
-COPY internal/ ./internal/
+COPY auth-service/ ./auth-service/
+COPY shared/ ./shared/
 
 # Build the Go binary
 # Output binary to /app/auth-service
-RUN CGO_ENABLED=0 GOOS=linux go build -o auth-service ./auth/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o auth-service ./auth-service/main.go
 
 # Use a minimal alpine image for the runtime to reduce image size
 FROM alpine:latest

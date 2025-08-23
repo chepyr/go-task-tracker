@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chepyr/go-task-tracker/internal/db"
+	"github.com/chepyr/go-task-tracker/auth-service/db"
 )
 
 // TestRegister tests the Register handler with various scenarios.

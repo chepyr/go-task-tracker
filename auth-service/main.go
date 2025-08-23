@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/chepyr/go-task-tracker/internal/db"
-	"github.com/chepyr/go-task-tracker/internal/handlers"
+	"github.com/chepyr/go-task-tracker/auth-service/db"
+	"github.com/chepyr/go-task-tracker/auth-service/handlers"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
