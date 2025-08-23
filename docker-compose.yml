@@ -1,17 +1,35 @@
-version: '3.8' 
+version: '3.8'
 
 services:
-  postgres:
+  auth_db:
     image: postgres:15
-    environment: 
-      POSTGRES_USER: ${POSTGRES_USER} 
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
-      POSTGRES_DB: ${POSTGRES_DB}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: auth_db
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck: 
+      - auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  tasks_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: tasks_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - tasks_data:/var/lib/postgresql/data
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
@@ -22,26 +40,51 @@ services:
   auth-service:
     build:
       context: .
-      dockerfile: auth-service/Dockerfile 
+      dockerfile: auth-service/Dockerfile
     ports:
       - "${SERVER_PORT}:8081"
-    environment: 
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=${POSTGRES_USER} 
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD} 
-      - POSTGRES_DB=${POSTGRES_DB} 
-      - POSTGRES_PORT=5432 
+    environment:
+      - POSTGRES_HOST=auth_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=auth_db
+      - POSTGRES_PORT=5432
       - SERVER_PORT=8081
       - JWT_SECRET=${JWT_SECRET}
     depends_on:
-      postgres: 
+      auth_db:
         condition: service_healthy
     networks:
       - app-network
 
+  tasks-service:
+    build:
+      context: .
+      dockerfile: tasks-service/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - POSTGRES_HOST=tasks_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=tasks_db
+      - POSTGRES_PORT=5432
+      - SERVER_PORT_TASKS=8082
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:8081
+    depends_on:
+      tasks_db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - app-network
+
 volumes:
-  pgdata:
+  auth_data:
+  tasks_data:
 
 networks:
   app-network:
     driver: bridge
+    
