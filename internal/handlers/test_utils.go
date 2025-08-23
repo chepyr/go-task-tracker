@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/chepyr/go-task-tracker/internal/models"
@@ -14,6 +15,7 @@ type MockUserRepository struct {
 	users     map[string]*models.User
 	createErr error
 	getErr    error
+	mutex     sync.Mutex
 }
 
 func NewMockUserRepository() *MockUserRepository {
@@ -21,6 +23,9 @@ func NewMockUserRepository() *MockUserRepository {
 }
 
 func (m *MockUserRepository) Create(ctx context.Context, user *models.User) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	if m.createErr != nil {
 		return m.createErr
 	}
@@ -32,6 +37,9 @@ func (m *MockUserRepository) Create(ctx context.Context, user *models.User) erro
 }
 
 func (m *MockUserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
