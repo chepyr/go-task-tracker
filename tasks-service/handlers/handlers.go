@@ -3,7 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,6 +74,15 @@ func (rl *RateLimiter) cleanup() {
 	}
 }
 
+func clientIP(r *http.Request) string {
+	if xf := r.Header.Get("X-Forwarded-For"); xf != "" {
+		parts := strings.Split(xf, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	host, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return host
+}
+
 // BroadcastTaskUpdate sends a task update to all WebSocket connections for a given board.
 func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 	h.mutex.Lock()
@@ -81,7 +93,7 @@ func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 		return
 	}
 
-	message, err := json.Marshal(map[string]interface{}{
+	message, err := json.Marshal(map[string]any{
 		"event":   "task_updated",
 		"task_id": task.ID,
 		"title":   task.Title,
@@ -102,17 +114,23 @@ func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 }
 
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Check rate limiting
-	clientIP := r.RemoteAddr
+	clientIP := clientIP(r)
 	if !h.RateLimiter.Allow(clientIP) {
 		sendError(w, "Too many WebSocket connection attempts", http.StatusTooManyRequests)
 		return
 	}
 
-	// Upgrade HTTP connection to WebSocket
+	// upgrade HTTP connection to WebSocket
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Adjust for production (e.g., check specific origins)
+			allowed := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+			origin := r.Header.Get("Origin")
+			for _, a := range allowed {
+				if strings.TrimSpace(a) == origin {
+					return true
+				}
+			}
+			return false
 		},
 	}
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -131,15 +149,30 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify board exists and user has access
-	_, err = h.BoardRepo.GetByID(r.Context(), boardIDStr)
+	uid, _ := r.Context().Value("user_id").(string)
+
+	board, err := h.BoardRepo.GetByID(r.Context(), boardIDStr)
 	if err != nil {
-		log.Printf("Board not found or unauthorized: %v", err)
+		log.Printf("Board not found: %v", err)
 		conn.Close()
 		return
 	}
 
-	// Register connection in WSHub
+	// check if user is owner (TODO: later add collaboratorr/assignee)
+	if board.OwnerID.String() != uid {
+		log.Printf("Forbidden: user %s is not owner of board %s", uid, boardIDStr)
+		conn.Close()
+		return
+	}
+	// verify board exists
+	_, err = h.BoardRepo.GetByID(r.Context(), boardIDStr)
+	if err != nil {
+		log.Printf("Board not found: %v", err)
+		conn.Close()
+		return
+	}
+
+	// register connection in WSHub
 	h.WSHub.mutex.Lock()
 	if h.WSHub.connections[boardID] == nil {
 		h.WSHub.connections[boardID] = make(map[*websocket.Conn]bool)
@@ -158,7 +191,6 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			conn.Close()
 			return
 		}
-		// Optionally handle incoming messages from clients
 	}
 }
 
