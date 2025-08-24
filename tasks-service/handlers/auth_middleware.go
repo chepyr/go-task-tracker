@@ -14,27 +14,27 @@ Verify JWT tokens by making HTTP requests to the auth service
 Extract the user ID from the token and add it to the request context
 */
 func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			sendError(w, "Missing Authorization header", http.StatusUnauthorized)
-			return
-		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-		if err != nil || !token.Valid {
-			sendError(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok || claims["sub"] == nil {
-			sendError(w, "Invalid token claims", http.StatusUnauthorized)
-			return
-		}
+    return func(w http.ResponseWriter, r *http.Request) {
+        ah := r.Header.Get("Authorization")
+        if ah == "" { sendError(w, "Missing Authorization header", http.StatusUnauthorized); return }
 
-		ctx := context.WithValue(r.Context(), "user_email", claims["sub"])
-		next(w, r.WithContext(ctx))
-	}
+        tokenString := strings.TrimPrefix(ah, "Bearer ")
+        claims := jwt.MapClaims{}
+        parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
+        token, err := parser.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (any, error) {
+            return []byte(os.Getenv("JWT_SECRET")), nil
+        })
+        if err != nil || !token.Valid {
+            sendError(w, "Invalid token", http.StatusUnauthorized); return
+        }
+
+        if _, ok := claims["exp"].(float64); !ok {
+            sendError(w, "Token missing exp", http.StatusUnauthorized); return
+        }
+        uid, _ := claims["sub"].(string)
+        if uid == "" { sendError(w, "Invalid token claims", http.StatusUnauthorized); return }
+
+        ctx := context.WithValue(r.Context(), "user_id", uid)
+        next(w, r.WithContext(ctx))
+    }
 }
