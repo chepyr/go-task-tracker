@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chepyr/go-task-tracker/internal/db"
+	"github.com/chepyr/go-task-tracker/auth-service/db"
 )
 
 type Handler struct {

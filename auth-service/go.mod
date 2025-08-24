@@ -1,4 +1,4 @@
-module github.com/chepyr/go-task-tracker
+module github.com/chepyr/go-task-tracker/auth-service
 
 go 1.25.0
 
@@ -9,7 +9,10 @@ require (
 )
 
 require (
+	github.com/chepyr/go-task-tracker/shared v0.1.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/joho/godotenv v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.32
 )
+
+replace github.com/chepyr/go-task-tracker/shared v0.1.0 => ../shared

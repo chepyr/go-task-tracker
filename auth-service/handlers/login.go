@@ -56,7 +56,7 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	tokenString, err := generateJWTToken(input.Email)
+	tokenString, err := generateJWTToken(user.ID.String())
 	if err != nil {
 		log.Printf("Error generating token: %v", err)
 		sendError(writer, "Cannot create token", http.StatusInternalServerError)
@@ -73,9 +73,9 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 	log.Printf("User logged in: %s", input.Email)
 }
 
-func generateJWTToken(email string) (string, error) {
+func generateJWTToken(sub string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": email,
+		"sub": sub,
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
 		"iat": time.Now().Unix(),
 	})
