@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/chepyr/go-task-tracker/shared/models"
+	"github.com/google/uuid"
 )
 
 // defines methods for board db operations
@@ -26,15 +27,56 @@ func (r *BoardRepository) Create(ctx context.Context, board *models.Board) error
 	 VALUES ($1, $2, $3, $4, $5, $6)`
 
 	_, err := r.db.ExecContext(
-		ctx, query, board.ID, board.OwnerID, board.Title, board.Description, board.CreatedAt, board.UpdatedAt)
+		ctx, query, board.ID, board.OwnerID, board.Title, board.Description,
+		board.CreatedAt, board.UpdatedAt)
 	return err
 }
 
 func (r *BoardRepository) GetByID(ctx context.Context, id string) (*models.Board, error) {
-	query := `SELECT id, owner_id, title, description, created_at, updated_at FROM boards WHERE id = $1`
+	query := `SELECT id, owner_id, title, description, created_at, updated_at
+	 FROM boards WHERE id = $1`
 	board := &models.Board{}
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&board.ID, &board.OwnerID, &board.Title, &board.Description, &board.CreatedAt, &board.UpdatedAt,
+		&board.ID, &board.OwnerID, &board.Title, &board.Description,
+		&board.CreatedAt, &board.UpdatedAt,
 	)
 	return board, err
+}
+
+func (r *BoardRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM boards WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	return err
+}
+
+func (r *BoardRepository) Update(ctx context.Context, board *models.Board) error {
+	query := `UPDATE boards SET title = $1, description = $2, updated_at = $3 WHERE id = $4`
+	_, err := r.db.ExecContext(ctx, query, board.Title, board.Description, board.UpdatedAt, board.ID)
+	return err
+}
+
+func (r *BoardRepository) ListByUserID(ctx context.Context, ownerID string) ([]*models.Board, error) {
+	query := `SELECT id, owner_id, title, description, created_at, updated_at
+	 FROM boards WHERE owner_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.QueryContext(ctx, query, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var boards []*models.Board
+	for rows.Next() {
+		board := &models.Board{}
+		if err := rows.Scan(
+			&board.ID, &board.OwnerID, &board.Title, &board.Description,
+			&board.CreatedAt, &board.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		boards = append(boards, board)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return boards, nil
 }

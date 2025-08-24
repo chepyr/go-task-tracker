@@ -1,13 +1,217 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
+	"strings"
+	"time"
+
+	"github.com/chepyr/go-task-tracker/shared/models"
+	"github.com/google/uuid"
 )
 
+/*
+handles routes:
+GET /boards - list boards
+POST /boards - create board
+*/
 func (h *Handler) HandleBoards(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	switch r.Method {
+	case http.MethodGet:
+		h.listBoards(w, r)
+	case http.MethodPost:
+		h.createBoard(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 func (h *Handler) HandleBoardByID(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Not implemented", http.StatusNotImplemented)
+	boardID := strings.TrimPrefix(r.URL.Path, "/boards/")
+	if boardID == "" {
+		sendError(w, "Board ID is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := uuid.Parse(boardID); err != nil {
+		sendError(w, "Invalid board ID", http.StatusBadRequest)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		h.GetBoard(w, r, boardID)
+	case http.MethodPut:
+		h.UpdateBoard(w, r, boardID)
+	case http.MethodDelete:
+		h.DeleteBoard(w, r, boardID)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request, boardID string) {
+	userId, _ := r.Context().Value("user_id").(string)
+	if userId == "" {
+		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	board, err := h.BoardRepo.GetByID(ctx, boardID)
+	if err != nil || board == nil {
+		sendError(w, "Board not found", http.StatusNotFound)
+		return
+	}
+	if board.OwnerID.String() != userId {
+		sendError(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := h.BoardRepo.Delete(ctx, board.ID); err != nil {
+		sendError(w, "Failed to delete board", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request, boardID string) {
+	userId, _ := r.Context().Value("user_id").(string)
+	if userId == "" {
+		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	board, err := h.BoardRepo.GetByID(ctx, boardID)
+	if err != nil || board == nil {
+		sendError(w, "Board not found", http.StatusNotFound)
+		return
+	}
+	if board.OwnerID.String() != userId {
+		sendError(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if !isJSONContentType(r) {
+		sendError(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var updatedBoard models.Board
+	updatedBoard.ID = board.ID
+	updatedBoard.OwnerID = board.OwnerID
+	updatedBoard.CreatedAt = board.CreatedAt
+	updatedBoard.UpdatedAt = time.Now().UTC()
+
+	if err := h.BoardRepo.Update(ctx, &updatedBoard); err != nil {
+		sendError(w, "Failed to update board", http.StatusInternalServerError)
+		return
+	}
+	sendJSON(w, []*models.Board{&updatedBoard})
+}
+
+func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request, boardID string) {
+	userId, _ := r.Context().Value("user_id").(string)
+	if userId == "" {
+		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	board, err := h.BoardRepo.GetByID(ctx, boardID)
+	if err != nil || board == nil {
+		sendError(w, "Board not found", http.StatusNotFound)
+		return
+	}
+	if board.OwnerID.String() != userId {
+		sendError(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	sendJSON(w, []*models.Board{board})
+}
+
+func (h *Handler) listBoards(w http.ResponseWriter, r *http.Request) {
+	userID, _ := r.Context().Value("user_id").(string)
+	if userID == "" {
+		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	boards, err := h.BoardRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		sendError(w, "Failed to fetch boards", http.StatusInternalServerError)
+		return
+	}
+	sendJSON(w, boards)
+}
+
+func (h *Handler) createBoard(w http.ResponseWriter, r *http.Request) {
+	userID, _ := r.Context().Value("user_id").(string)
+	if userID == "" {
+		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if !isJSONContentType(r) {
+		sendError(w, "Content-Type must be application/json", http.StatusBadRequest)
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
+
+	var newBoard struct {
+		Title       string `json:"title"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&newBoard); err != nil {
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	newBoard.Title = strings.TrimSpace(newBoard.Title)
+	if newBoard.Title == "" || len(newBoard.Title) > 100 {
+		sendError(w, "Title is required and must be <= 100 characters", http.StatusBadRequest)
+		return
+	}
+	if len(newBoard.Description) > 500 {
+		sendError(w, "Description must be <= 500 characters", http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now().UTC()
+	board := &models.Board{
+		ID:          uuid.New(),
+		OwnerID:     uuid.MustParse(userID),
+		Title:       newBoard.Title,
+		Description: newBoard.Description,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := h.BoardRepo.Create(ctx, board); err != nil {
+		sendError(w, "Failed to create board", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Location", "/boards/"+board.ID.String())
+	w.WriteHeader(http.StatusCreated)
+}
+
+func isJSONContentType(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	return strings.HasPrefix(strings.ToLower(ct), "application/json")
+}
+
+func sendJSON(w http.ResponseWriter, boards []*models.Board) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(boards)
 }

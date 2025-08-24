@@ -132,6 +132,9 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	h.readLoop(boardID, conn)
 }
 
+/*
+Upgrade the HTTP connection to a WebSocket and authorize the user for the specified board.
+*/
 func (h *Handler) upgradeAndAuthorize(w http.ResponseWriter, r *http.Request) (*websocket.Conn, uuid.UUID, string, error) {
 	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
 	conn, err := upgrader.Upgrade(w, r, nil)
@@ -156,7 +159,13 @@ func (h *Handler) upgradeAndAuthorize(w http.ResponseWriter, r *http.Request) (*
 	return conn, boardID, uid, nil
 }
 
+/*
+Check the Origin header against the allowed origins.
+If ALLOWED_ORIGINS is empty, allow all origins (for development).
+*/
 func checkOrigin(r *http.Request) bool {
+	// If ALLOWED_ORIGINS is empty, allow all origins
+	// (made for production use with specific origins only)
 	allowed := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
 	origin := r.Header.Get("Origin")
 
