@@ -55,7 +55,7 @@ func initDB() *sql.DB {
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
 		host, user, password, dbname, port)
 
-	dbConn, err := db.Connect(dsn)
+	dbConn, err := db.Connect(dsn, "postgres")
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
