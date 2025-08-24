@@ -75,5 +75,3 @@ func (r *TaskRepository) ListByBoardID(ctx context.Context, boardID string) ([]*
 	}
 	return tasks, nil
 }
-
-
