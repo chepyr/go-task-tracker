@@ -111,7 +111,7 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request, boardID st
 		sendError(w, "Failed to update board", http.StatusInternalServerError)
 		return
 	}
-	sendJSON(w, []*models.Board{&updatedBoard})
+	sendBoardsJSON(w, []*models.Board{&updatedBoard})
 }
 
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request, boardID string) {
@@ -133,7 +133,7 @@ func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request, boardID strin
 		sendError(w, "Forbidden", http.StatusForbidden)
 		return
 	}
-	sendJSON(w, []*models.Board{board})
+	sendBoardsJSON(w, []*models.Board{board})
 }
 
 func (h *Handler) listBoards(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func (h *Handler) listBoards(w http.ResponseWriter, r *http.Request) {
 		sendError(w, "Failed to fetch boards", http.StatusInternalServerError)
 		return
 	}
-	sendJSON(w, boards)
+	sendBoardsJSON(w, boards)
 }
 
 func (h *Handler) createBoard(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +211,7 @@ func isJSONContentType(r *http.Request) bool {
 	return strings.HasPrefix(strings.ToLower(ct), "application/json")
 }
 
-func sendJSON(w http.ResponseWriter, boards []*models.Board) {
+func sendBoardsJSON(w http.ResponseWriter, boards []*models.Board) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(boards)
 }
