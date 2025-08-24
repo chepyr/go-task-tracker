@@ -13,14 +13,21 @@ import (
 
 	"github.com/chepyr/go-task-tracker/tasks-service/db"
 	"github.com/chepyr/go-task-tracker/tasks-service/handlers"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
-	}
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Fatalf("Error loading .env file: %v", err)
+	// }
+	// if _, err := os.Stat(".env"); err == nil {
+	// 	// файл есть → загружаем
+	// 	if err := godotenv.Load(); err != nil {
+	// 		log.Fatalf("Error loading .env file: %v", err)
+	// 	}
+	// } else {
+	// 	log.Println(".env file not found, skipping — relying on environment variables")
+	// }
 
 	validateEnv()
 	dbConn := initDB()
