@@ -43,7 +43,9 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), "user_id", uid)
+		type contextKey string
+		const userIDKey contextKey = "user_id"
+		ctx := context.WithValue(r.Context(), userIDKey, uid)
 		next(w, r.WithContext(ctx))
 	}
 }

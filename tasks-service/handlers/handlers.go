@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -112,7 +113,6 @@ func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 		}
 	}
 }
-
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clientIP := clientIP(r)
 	if !h.RateLimiter.Allow(clientIP) {
@@ -120,76 +120,104 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// upgrade HTTP connection to WebSocket
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			allowed := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
-			origin := r.Header.Get("Origin")
-			for _, a := range allowed {
-				if strings.TrimSpace(a) == origin {
-					return true
-				}
-			}
-			return false
-		},
-	}
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, boardID, _, err := h.upgradeAndAuthorize(w, r)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
-		sendError(w, "WebSocket upgrade failed", http.StatusInternalServerError)
+		log.Printf("WebSocket auth/upgrade failed: %v", err)
 		return
 	}
 
-	// Extract board ID from query parameters
+	h.WSHub.register(boardID, conn)
+	h.setupKeepAlive(boardID, conn)
+
+	h.readLoop(boardID, conn)
+}
+
+func (h *Handler) upgradeAndAuthorize(w http.ResponseWriter, r *http.Request) (*websocket.Conn, uuid.UUID, string, error) {
+	upgrader := websocket.Upgrader{CheckOrigin: checkOrigin}
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		return nil, uuid.Nil, "", err
+	}
+
 	boardIDStr := r.URL.Query().Get("board_id")
 	boardID, err := uuid.Parse(boardIDStr)
 	if err != nil {
-		log.Printf("Invalid board ID: %v", err)
 		conn.Close()
-		return
+		return nil, uuid.Nil, "", fmt.Errorf("invalid board id")
 	}
 
 	uid, _ := r.Context().Value("user_id").(string)
-
 	board, err := h.BoardRepo.GetByID(r.Context(), boardIDStr)
-	if err != nil {
-		log.Printf("Board not found: %v", err)
+	if err != nil || board.OwnerID.String() != uid {
 		conn.Close()
-		return
+		return nil, uuid.Nil, "", fmt.Errorf("forbidden")
 	}
 
-	// check if user is owner (TODO: later add collaboratorr/assignee)
-	if board.OwnerID.String() != uid {
-		log.Printf("Forbidden: user %s is not owner of board %s", uid, boardIDStr)
-		conn.Close()
-		return
-	}
-	// verify board exists
-	_, err = h.BoardRepo.GetByID(r.Context(), boardIDStr)
-	if err != nil {
-		log.Printf("Board not found: %v", err)
-		conn.Close()
-		return
+	return conn, boardID, uid, nil
+}
+
+func checkOrigin(r *http.Request) bool {
+	allowed := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+	origin := r.Header.Get("Origin")
+
+	if len(allowed) == 0 || (len(allowed) == 1 && strings.TrimSpace(allowed[0]) == "") {
+		return true
 	}
 
-	// register connection in WSHub
-	h.WSHub.mutex.Lock()
-	if h.WSHub.connections[boardID] == nil {
-		h.WSHub.connections[boardID] = make(map[*websocket.Conn]bool)
+	for _, a := range allowed {
+		if strings.TrimSpace(a) == origin {
+			return true
+		}
 	}
-	h.WSHub.connections[boardID][conn] = true
-	h.WSHub.mutex.Unlock()
+	return false
+}
 
-	// Handle WebSocket messages
+func (hub *WSHub) register(boardID uuid.UUID, conn *websocket.Conn) {
+	hub.mutex.Lock()
+	defer hub.mutex.Unlock()
+	if hub.connections[boardID] == nil {
+		hub.connections[boardID] = make(map[*websocket.Conn]bool)
+	}
+	hub.connections[boardID][conn] = true
+}
+
+func (hub *WSHub) unregister(boardID uuid.UUID, conn *websocket.Conn) {
+	hub.mutex.Lock()
+	defer hub.mutex.Unlock()
+	delete(hub.connections[boardID], conn)
+}
+
+func (h *Handler) setupKeepAlive(boardID uuid.UUID, conn *websocket.Conn) {
+	conn.SetReadLimit(1 << 20)
+	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			if err := conn.WriteControl(
+				websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second),
+			); err != nil {
+				h.WSHub.unregister(boardID, conn)
+				conn.Close()
+				return
+			}
+		}
+	}()
+}
+
+func (h *Handler) readLoop(boardID uuid.UUID, conn *websocket.Conn) {
 	for {
 		_, _, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("WebSocket error: %v", err)
-			h.WSHub.mutex.Lock()
-			delete(h.WSHub.connections[boardID], conn)
-			h.WSHub.mutex.Unlock()
+			log.Printf("WebSocket closed: %v", err)
+			h.WSHub.unregister(boardID, conn)
 			conn.Close()
-			return
+			break
 		}
 	}
 }
