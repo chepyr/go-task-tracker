@@ -17,18 +17,6 @@ import (
 )
 
 func main() {
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatalf("Error loading .env file: %v", err)
-	// }
-	// if _, err := os.Stat(".env"); err == nil {
-	// 	// файл есть → загружаем
-	// 	if err := godotenv.Load(); err != nil {
-	// 		log.Fatalf("Error loading .env file: %v", err)
-	// 	}
-	// } else {
-	// 	log.Println(".env file not found, skipping — relying on environment variables")
-	// }
-
 	validateEnv()
 	dbConn := initDB()
 	defer dbConn.Close()
@@ -78,14 +66,21 @@ func initHandlers(dbConn *sql.DB) *handlers.Handler {
 	}
 	http.HandleFunc("/boards", handler.AuthMiddleware(handler.HandleBoards))
 	http.HandleFunc("/boards/", handler.AuthMiddleware(handler.HandleBoardByID))
-	http.HandleFunc("/boards/tasks", handler.AuthMiddleware(handler.HandleTasks))
+
+	http.HandleFunc("/tasks", handler.AuthMiddleware(handler.HandleTasks))
+	http.HandleFunc("/tasks/", handler.AuthMiddleware(handler.HandleTaskByID))
+
 	http.HandleFunc("/ws", handler.AuthMiddleware(handler.HandleWebSocket))
 	return handler
 }
 
 func initServer() *http.Server {
 	return &http.Server{
-		Addr: ":" + os.Getenv("SERVER_PORT_TASKS"),
+		Addr:              ":" + os.Getenv("SERVER_PORT_TASKS"),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 }
 

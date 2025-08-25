@@ -17,18 +17,6 @@ import (
 )
 
 func main() {
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatalf("Error loading .env file: %v", err)
-	// }
-	// if _, err := os.Stat(".env"); err == nil {
-	// 	// файл есть → загружаем
-	// 	if err := godotenv.Load(); err != nil {
-	// 		log.Fatalf("Error loading .env file: %v", err)
-	// 	}
-	// } else {
-	// 	log.Println(".env file not found, skipping — relying on environment variables")
-	// }
-
 	validateEnv()
 	dbConn := initDB()
 
@@ -89,7 +77,11 @@ func initHandlers(dbConn *sql.DB) {
 
 func initServer() *http.Server {
 	return &http.Server{
-		Addr: ":" + os.Getenv("SERVER_PORT"),
+		Addr:              ":" + os.Getenv("SERVER_PORT"),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 }
 

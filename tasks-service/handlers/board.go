@@ -100,18 +100,35 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request, boardID st
 		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var updatedBoard models.Board
-	updatedBoard.ID = board.ID
-	updatedBoard.OwnerID = board.OwnerID
-	updatedBoard.CreatedAt = board.CreatedAt
-	updatedBoard.UpdatedAt = time.Now().UTC()
 
-	if err := h.BoardRepo.Update(ctx, &updatedBoard); err != nil {
-		http.Error(w, "Failed to update board", http.StatusInternalServerError)
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var input struct{ Title, Description *string }
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid JSON body", 400)
 		return
 	}
-	sendBoardsJSON(w, []*models.Board{&updatedBoard})
+	updated := *board
+	if input.Title != nil {
+		updatedTitle := strings.TrimSpace(*input.Title)
+		if updatedTitle == "" || len(updatedTitle) > 100 {
+			http.Error(w, "Title is required and must be <= 100 characters", http.StatusBadRequest)
+			return
+		}
+		updated.Title = updatedTitle
+	}
+	if input.Description != nil {
+		if len(*input.Description) > 500 {
+			http.Error(w, "Description must be <= 500 characters", http.StatusBadRequest)
+			return
+		}
+		updated.Description = *input.Description
+	}
+	updated.UpdatedAt = time.Now().UTC()
+	if err := h.BoardRepo.Update(ctx, &updated); err != nil {
+		http.Error(w, "Failed to update board", 500)
+		return
+	}
+	sendBoardsJSON(w, []*models.Board{&updated})
 }
 
 func (h *Handler) GetBoard(w http.ResponseWriter, r *http.Request, boardID string) {

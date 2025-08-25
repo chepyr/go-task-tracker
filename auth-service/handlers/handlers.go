@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
-	"net/http"
 	"sync"
 	"time"
 
@@ -12,16 +10,6 @@ import (
 type Handler struct {
 	UserRepo    db.UserRepositoryInterface
 	RateLimiter *RateLimiter
-}
-
-type errorResponse struct {
-	Error string `json:"error"`
-}
-
-func http.Error(window http.ResponseWriter, message string, status int) {
-	window.Header().Set("Content-Type", "application/json")
-	window.WriteHeader(status)
-	json.NewEncoder(window).Encode(errorResponse{Error: message})
 }
 
 type RateLimiter struct {
