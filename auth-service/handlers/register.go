@@ -16,14 +16,14 @@ import (
 func (handler *Handler) Register(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		log.Printf("Invalid method for register: %s", request.Method)
-		sendError(writer, "Use POST method", http.StatusMethodNotAllowed)
+		http.Error(writer, "Use POST method", http.StatusMethodNotAllowed)
 		return
 	}
 
 	clientIP := request.RemoteAddr
 	if handler.RateLimiter != nil && !handler.RateLimiter.Allow(clientIP) {
 		log.Printf("Rate limit exceeded for IP: %s", clientIP)
-		sendError(writer, "Too many register attempts. Please try again later.", http.StatusTooManyRequests)
+		http.Error(writer, "Too many register attempts. Please try again later.", http.StatusTooManyRequests)
 		return
 	}
 
@@ -33,7 +33,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	}
 	if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
 		log.Printf("Error decoding JSON: %v", err)
-		sendError(writer, "Bad JSON", http.StatusBadRequest)
+		http.Error(writer, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -44,7 +44,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
-		sendError(writer, "Cannot hash password", http.StatusInternalServerError)
+		http.Error(writer, "Cannot hash password", http.StatusInternalServerError)
 		return
 	}
 
@@ -57,7 +57,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	}
 
 	if err := handler.UserRepo.Create(context.Background(), user); err != nil {
-		sendError(writer, "Cannot save user", http.StatusInternalServerError)
+		http.Error(writer, "Cannot save user", http.StatusInternalServerError)
 		return
 	}
 
@@ -78,12 +78,12 @@ func validateUserEmailAndPassword(input struct {
 
 	if !isValidEmail(input.Email) {
 		log.Printf("Invalid email format")
-		sendError(writer, "Invalid email", http.StatusBadRequest)
+		http.Error(writer, "Invalid email", http.StatusBadRequest)
 		return false
 	}
 	if len(input.Password) < 4 {
 		log.Printf("Password too short")
-		sendError(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
+		http.Error(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
 		return false
 	}
 	return true

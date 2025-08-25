@@ -34,13 +34,13 @@ func (h *Handler) HandleTasks(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 	userID, _ := r.Context().Value("user_id").(string)
 	if userID == "" {
-		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	boardIDStr := r.URL.Query().Get("board_id")
 	if _, err := uuid.Parse(boardIDStr); err != nil {
-		sendError(w, "board_id is required (uuid)", http.StatusBadRequest)
+		http.Error(w, "board_id is required (uuid)", http.StatusBadRequest)
 		return
 	}
 
@@ -49,17 +49,17 @@ func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 
 	b, err := h.BoardRepo.GetByID(ctx, boardIDStr)
 	if err != nil || b == nil {
-		sendError(w, "Board not found", http.StatusNotFound)
+		http.Error(w, "Board not found", http.StatusNotFound)
 		return
 	}
 	if b.OwnerID.String() != userID {
-		sendError(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
 	tasks, err := h.TaskRepo.ListByBoardID(ctx, boardIDStr)
 	if err != nil {
-		sendError(w, "Failed to list tasks", http.StatusInternalServerError)
+		http.Error(w, "Failed to list tasks", http.StatusInternalServerError)
 		return
 	}
 	sendTasksJSON(w, tasks)
@@ -68,11 +68,11 @@ func (h *Handler) listTasks(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	userID, _ := r.Context().Value("user_id").(string)
 	if userID == "" {
-		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	if !isJSONContentType(r) {
-		sendError(w, "Content-Type must be application/json", http.StatusBadRequest)
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
 		return
 	}
 
@@ -84,17 +84,17 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		Status      string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		sendError(w, "Invalid JSON body", http.StatusBadRequest)
+		http.Error(w, "Invalid JSON body", http.StatusBadRequest)
 		return
 	}
 	if input.Title == "" || input.BoardID == "" {
-		sendError(w, "title and board_id are required", http.StatusBadRequest)
+		http.Error(w, "title and board_id are required", http.StatusBadRequest)
 		return
 	}
 
 	boardID, err := uuid.Parse(input.BoardID)
 	if err != nil {
-		sendError(w, "board_id must be a valid uuid", http.StatusBadRequest)
+		http.Error(w, "board_id must be a valid uuid", http.StatusBadRequest)
 		return
 	}
 
@@ -103,11 +103,11 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	board, err := h.BoardRepo.GetByID(ctx, input.BoardID)
 	if err != nil || board == nil {
-		sendError(w, "Board not found", http.StatusNotFound)
+		http.Error(w, "Board not found", http.StatusNotFound)
 		return
 	}
 	if board.OwnerID.String() != userID {
-		sendError(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *Handler) createTask(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:   now,
 	}
 	if err := h.TaskRepo.Create(ctx, task); err != nil {
-		sendError(w, "Failed to create task", http.StatusInternalServerError)
+		http.Error(w, "Failed to create task", http.StatusInternalServerError)
 		return
 	}
 	h.WSHub.BroadcastTaskUpdate(boardID, task)
@@ -143,13 +143,13 @@ routes:
 func (h *Handler) HandleTaskByID(w http.ResponseWriter, r *http.Request) {
 	taskIDstr := r.URL.Path[len("/tasks/"):]
 	if taskIDstr == "" {
-		// TODO sendError => http.Error
-		sendError(w, "task_id is required", http.StatusBadRequest)
+		// TODO http.Error => http.Error
+		http.Error(w, "task_id is required", http.StatusBadRequest)
 		return
 	}
 	taskID, err := uuid.Parse(taskIDstr)
 	if err != nil {
-		sendError(w, "task_id must be a valid uuid", http.StatusBadRequest)
+		http.Error(w, "task_id must be a valid uuid", http.StatusBadRequest)
 		return
 	}
 
@@ -161,7 +161,7 @@ func (h *Handler) HandleTaskByID(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		h.deleteTaskByID(w, r, taskID)
 	default:
-		sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 }
@@ -169,7 +169,7 @@ func (h *Handler) HandleTaskByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) getTaskByID(w http.ResponseWriter, r *http.Request, taskID uuid.UUID) {
 	userID, _ := r.Context().Value("user_id").(string)
 	if userID == "" {
-		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -178,17 +178,17 @@ func (h *Handler) getTaskByID(w http.ResponseWriter, r *http.Request, taskID uui
 
 	task, err := h.TaskRepo.GetByID(ctx, taskID.String())
 	if err != nil || task == nil {
-		sendError(w, "Task not found", http.StatusNotFound)
+		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
 	board, err := h.BoardRepo.GetByID(ctx, task.BoardID.String())
 	if err != nil || board == nil {
-		sendError(w, "Board not found", http.StatusNotFound)
+		http.Error(w, "Board not found", http.StatusNotFound)
 		return
 	}
 	if board.OwnerID.String() != userID {
-		sendError(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -198,11 +198,11 @@ func (h *Handler) getTaskByID(w http.ResponseWriter, r *http.Request, taskID uui
 func (h *Handler) updateTaskByID(w http.ResponseWriter, r *http.Request, taskID uuid.UUID) {
 	userID, _ := r.Context().Value("user_id").(string)
 	if userID == "" {
-		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	if !isJSONContentType(r) {
-		sendError(w, "Content-Type must be application/json", http.StatusBadRequest)
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
@@ -212,17 +212,17 @@ func (h *Handler) updateTaskByID(w http.ResponseWriter, r *http.Request, taskID 
 
 	existingTask, err := h.TaskRepo.GetByID(ctx, taskID.String())
 	if err != nil || existingTask == nil {
-		sendError(w, "Task not found", http.StatusNotFound)
+		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
 	board, err := h.BoardRepo.GetByID(ctx, existingTask.BoardID.String())
 	if err != nil || board == nil {
-		sendError(w, "Board not found", http.StatusNotFound)
+		http.Error(w, "Board not found", http.StatusNotFound)
 		return
 	}
 	if board.OwnerID.String() != userID {
-		sendError(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
@@ -268,7 +268,7 @@ func (h *Handler) updateTaskByID(w http.ResponseWriter, r *http.Request, taskID 
 	existingTask.UpdatedAt = time.Now().UTC()
 
 	if err := h.TaskRepo.Update(ctx, existingTask); err != nil {
-		sendError(w, "Failed to update task", http.StatusInternalServerError)
+		http.Error(w, "Failed to update task", http.StatusInternalServerError)
 		return
 	}
 	h.WSHub.BroadcastTaskUpdate(existingTask.BoardID, existingTask)
@@ -278,7 +278,7 @@ func (h *Handler) updateTaskByID(w http.ResponseWriter, r *http.Request, taskID 
 func (h *Handler) deleteTaskByID(w http.ResponseWriter, r *http.Request, taskID uuid.UUID) {
 	userID, _ := r.Context().Value("user_id").(string)
 	if userID == "" {
-		sendError(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -287,22 +287,22 @@ func (h *Handler) deleteTaskByID(w http.ResponseWriter, r *http.Request, taskID 
 
 	existingTask, err := h.TaskRepo.GetByID(ctx, taskID.String())
 	if err != nil || existingTask == nil {
-		sendError(w, "Task not found", http.StatusNotFound)
+		http.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
 	board, err := h.BoardRepo.GetByID(ctx, existingTask.BoardID.String())
 	if err != nil || board == nil {
-		sendError(w, "Board not found", http.StatusNotFound)
+		http.Error(w, "Board not found", http.StatusNotFound)
 		return
 	}
 	if board.OwnerID.String() != userID {
-		sendError(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
 	if err := h.TaskRepo.Delete(ctx, taskID.String()); err != nil {
-		sendError(w, "Failed to delete task", http.StatusInternalServerError)
+		http.Error(w, "Failed to delete task", http.StatusInternalServerError)
 		return
 	}
 	// TODO: add WS notification for deletion

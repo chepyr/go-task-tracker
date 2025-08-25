@@ -9,8 +9,8 @@ import (
 
 // defines methods for board db operations
 type TaskRepositoryInterface interface {
-	Create(ctx context.Context, board *models.Board) error
-	GetByID(ctx context.Context, id string) (*models.Board, error)
+	Create(ctx context.Context, task *models.Task) error
+	GetByID(ctx context.Context, id string) (*models.Task, error)
 }
 
 type TaskRepository struct {

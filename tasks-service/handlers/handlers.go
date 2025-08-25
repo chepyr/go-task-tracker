@@ -116,7 +116,7 @@ func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clientIP := clientIP(r)
 	if !h.RateLimiter.Allow(clientIP) {
-		sendError(w, "Too many WebSocket connection attempts", http.StatusTooManyRequests)
+		http.Error(w, "Too many WebSocket connection attempts", http.StatusTooManyRequests)
 		return
 	}
 
@@ -229,8 +229,4 @@ func (h *Handler) readLoop(boardID uuid.UUID, conn *websocket.Conn) {
 			break
 		}
 	}
-}
-
-func sendError(w http.ResponseWriter, msg string, code int) {
-	http.Error(w, msg, code)
 }

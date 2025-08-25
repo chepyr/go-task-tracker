@@ -18,7 +18,7 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
-func sendError(window http.ResponseWriter, message string, status int) {
+func http.Error(window http.ResponseWriter, message string, status int) {
 	window.Header().Set("Content-Type", "application/json")
 	window.WriteHeader(status)
 	json.NewEncoder(window).Encode(errorResponse{Error: message})

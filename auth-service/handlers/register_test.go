@@ -145,7 +145,7 @@ func TestValidateUserEmailAndPassword(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.expected, got)
 			}
 			if !tt.expected && rr.Code == 0 {
-				t.Error("Expected sendError to be called, but no response written")
+				t.Error("Expected http.Error to be called, but no response written")
 			}
 		})
 	}
