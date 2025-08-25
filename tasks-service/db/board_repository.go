@@ -3,9 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/chepyr/go-task-tracker/shared/models"
-	"github.com/google/uuid"
 )
 
 // defines methods for board db operations
@@ -26,6 +26,17 @@ func (r *BoardRepository) Create(ctx context.Context, board *models.Board) error
 	query := `INSERT INTO boards (id, owner_id, title, description, created_at, updated_at)
 	 VALUES ($1, $2, $3, $4, $5, $6)`
 
+	// check title
+	if board.Title == "" {
+		return fmt.Errorf("board title cannot be empty")
+	}
+	if len(board.Title) > 100 {
+		return fmt.Errorf("board title cannot exceed 500 characters")
+	}
+	if len(board.Description) > 500 {
+		return fmt.Errorf("board description cannot exceed 500 characters")
+	}
+
 	_, err := r.db.ExecContext(
 		ctx, query, board.ID, board.OwnerID, board.Title, board.Description,
 		board.CreatedAt, board.UpdatedAt)
@@ -43,15 +54,36 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (*models.Board
 	return board, err
 }
 
-func (r *BoardRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM boards WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+func (r *BoardRepository) Delete(ctx context.Context, id string) error {
+	// check if exists
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)`
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("board with id %s does not exist", id)
+	}
+
+	query = `DELETE FROM boards WHERE id = $1`
+	_, err = r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *BoardRepository) Update(ctx context.Context, board *models.Board) error {
-	query := `UPDATE boards SET title = $1, description = $2, updated_at = $3 WHERE id = $4`
-	_, err := r.db.ExecContext(ctx, query, board.Title, board.Description, board.UpdatedAt, board.ID)
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)`
+	err := r.db.QueryRowContext(ctx, query, board.ID).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("board with id %s does not exist", board.ID)
+	}
+
+	query = `UPDATE boards SET title = $1, description = $2, updated_at = $3 WHERE id = $4`
+	_, err = r.db.ExecContext(ctx, query, board.Title, board.Description, board.UpdatedAt, board.ID)
 	return err
 }
 

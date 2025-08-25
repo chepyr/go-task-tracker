@@ -56,3 +56,12 @@ curl -v -X POST http://localhost:8082/boards \
   -H "Content-Type: application/json" \
   -d '{"title":"My Board","description":"For tasks"}'
   ```
+
+## Tests
+
+Run tests with
+
+```shell
+cd auth-service && go test ./... -race -cover
+cd tasks-service && go test ./... -race -cover
+```

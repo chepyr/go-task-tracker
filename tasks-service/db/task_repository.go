@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/chepyr/go-task-tracker/shared/models"
 )
@@ -25,7 +26,17 @@ func (r *TaskRepository) Create(ctx context.Context, task *models.Task) error {
 	query := `INSERT INTO tasks (id, board_id, title, description, status, created_at, updated_at)
 	 VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-	_, err := r.db.ExecContext(
+	// check if board_id exists in boards table
+	var exists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)", task.BoardID).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("board_id %s does not exist", task.BoardID)
+	}
+
+	_, err = r.db.ExecContext(
 		ctx, query, task.ID, task.BoardID, task.Title, task.Description, task.Status, task.CreatedAt, task.UpdatedAt)
 	return err
 }
@@ -40,14 +51,46 @@ func (r *TaskRepository) GetByID(ctx context.Context, id string) (*models.Task, 
 }
 
 func (r *TaskRepository) Delete(ctx context.Context, id string) error {
+	// check if task exists
+	var exists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM tasks WHERE id = $1)", id).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("task_id %s does not exist", id)
+	}
+
 	query := `DELETE FROM tasks WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err = r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *TaskRepository) Update(ctx context.Context, task *models.Task) error {
+	// TODO: move check to new function
+
+	// check if task's board exists
+	var boardExists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)", task.BoardID).Scan(&boardExists)
+	if err != nil {
+		return err
+	}
+	if !boardExists {
+		return fmt.Errorf("board_id %s does not exist", task.BoardID)
+	}
+
+	// check if task exists
+	var exists bool
+	err = r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM tasks WHERE id = $1)", task.ID).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("task_id %s does not exist", task.ID)
+	}
+
 	query := `UPDATE tasks SET title = $1, description = $2, status = $3, updated_at = $4 WHERE id = $5`
-	_, err := r.db.ExecContext(ctx, query, task.Title, task.Description, task.Status, task.UpdatedAt, task.ID)
+	_, err = r.db.ExecContext(ctx, query, task.Title, task.Description, task.Status, task.UpdatedAt, task.ID)
 	return err
 }
 

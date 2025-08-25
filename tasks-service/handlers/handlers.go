@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chepyr/go-task-tracker/shared"
 	"github.com/chepyr/go-task-tracker/shared/models"
 	"github.com/chepyr/go-task-tracker/tasks-service/db"
 	"github.com/google/uuid"
@@ -116,7 +117,7 @@ func (h *WSHub) BroadcastTaskUpdate(boardID uuid.UUID, task *models.Task) {
 func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	clientIP := clientIP(r)
 	if !h.RateLimiter.Allow(clientIP) {
-		http.Error(w, "Too many WebSocket connection attempts", http.StatusTooManyRequests)
+		shared.SendError(w, "Too many WebSocket connection attempts", http.StatusTooManyRequests)
 		return
 	}
 
