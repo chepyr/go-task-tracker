@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/chepyr/go-task-tracker/shared"
 	"github.com/chepyr/go-task-tracker/shared/models"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -16,14 +17,14 @@ import (
 func (handler *Handler) Register(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		log.Printf("Invalid method for register: %s", request.Method)
-		http.Error(writer, "Use POST method", http.StatusMethodNotAllowed)
+		shared.SendError(writer, "Use POST method", http.StatusMethodNotAllowed)
 		return
 	}
 
 	clientIP := request.RemoteAddr
 	if handler.RateLimiter != nil && !handler.RateLimiter.Allow(clientIP) {
 		log.Printf("Rate limit exceeded for IP: %s", clientIP)
-		http.Error(writer, "Too many register attempts. Please try again later.", http.StatusTooManyRequests)
+		shared.SendError(writer, "Too many register attempts. Please try again later.", http.StatusTooManyRequests)
 		return
 	}
 
@@ -33,7 +34,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	}
 	if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
 		log.Printf("Error decoding JSON: %v", err)
-		http.Error(writer, "Bad JSON", http.StatusBadRequest)
+		shared.SendError(writer, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 
@@ -44,7 +45,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("Error hashing password: %v", err)
-		http.Error(writer, "Cannot hash password", http.StatusInternalServerError)
+		shared.SendError(writer, "Cannot hash password", http.StatusInternalServerError)
 		return
 	}
 
@@ -57,7 +58,7 @@ func (handler *Handler) Register(writer http.ResponseWriter, request *http.Reque
 	}
 
 	if err := handler.UserRepo.Create(context.Background(), user); err != nil {
-		http.Error(writer, "Cannot save user", http.StatusInternalServerError)
+		shared.SendError(writer, "Cannot save user", http.StatusInternalServerError)
 		return
 	}
 
@@ -78,12 +79,12 @@ func validateUserEmailAndPassword(input struct {
 
 	if !isValidEmail(input.Email) {
 		log.Printf("Invalid email format")
-		http.Error(writer, "Invalid email", http.StatusBadRequest)
+		shared.SendError(writer, "Invalid email", http.StatusBadRequest)
 		return false
 	}
 	if len(input.Password) < 4 {
 		log.Printf("Password too short")
-		http.Error(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
+		shared.SendError(writer, "Password must be at least 4 characters long", http.StatusBadRequest)
 		return false
 	}
 	return true

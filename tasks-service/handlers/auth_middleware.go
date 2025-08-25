@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/chepyr/go-task-tracker/shared"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -17,7 +18,7 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ah := r.Header.Get("Authorization")
 		if ah == "" {
-			http.Error(w, "Missing Authorization header", http.StatusUnauthorized)
+			shared.SendError(w, "Missing Authorization header", http.StatusUnauthorized)
 			return
 		}
 
@@ -29,17 +30,17 @@ func (h *Handler) AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return []byte(os.Getenv("JWT_SECRET")), nil
 		})
 		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			shared.SendError(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
 		if _, ok := claims["exp"].(float64); !ok {
-			http.Error(w, "Token missing exp", http.StatusUnauthorized)
+			shared.SendError(w, "Token missing exp", http.StatusUnauthorized)
 			return
 		}
 		uid, _ := claims["sub"].(string)
 		if uid == "" {
-			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+			shared.SendError(w, "Invalid token claims", http.StatusUnauthorized)
 			return
 		}
 

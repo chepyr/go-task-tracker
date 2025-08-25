@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/chepyr/go-task-tracker/shared"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,14 +17,14 @@ import (
 func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		log.Printf("Invalid method for login: %s", request.Method)
-		http.Error(writer, "Use POST method for login", http.StatusMethodNotAllowed)
+		shared.SendError(writer, "Use POST method for login", http.StatusMethodNotAllowed)
 		return
 	}
 
 	clientIP := request.RemoteAddr
 	if handler.RateLimiter != nil && !handler.RateLimiter.Allow(clientIP) {
 		log.Printf("Rate limit exceeded for IP: %s", clientIP)
-		http.Error(writer, "Too many login attempts. Please try again later.", http.StatusTooManyRequests)
+		shared.SendError(writer, "Too many login attempts. Please try again later.", http.StatusTooManyRequests)
 		return
 	}
 
@@ -33,7 +34,7 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 	}
 	if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
 		log.Printf("Error decoding JSON: %v", err)
-		http.Error(writer, "Bad JSON", http.StatusBadRequest)
+		shared.SendError(writer, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 	if !validateUserEmailAndPassword(input, writer) {
@@ -44,7 +45,7 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 	user, err := handler.UserRepo.GetByEmail(context.Background(), input.Email)
 	if err != nil {
 		log.Printf("Error retrieving user by email %s: %v", input.Email, err)
-		http.Error(writer, "Invalid email or password", http.StatusUnauthorized)
+		shared.SendError(writer, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
 
@@ -52,14 +53,14 @@ func (handler *Handler) Login(writer http.ResponseWriter, request *http.Request)
 	if err := bcrypt.CompareHashAndPassword(
 		[]byte(user.PasswordHash), []byte(input.Password)); err != nil {
 		log.Printf("Invalid password for email: %s", input.Email)
-		http.Error(writer, "Invalid email or password", http.StatusUnauthorized)
+		shared.SendError(writer, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
 
 	tokenString, err := generateJWTToken(user.ID.String())
 	if err != nil {
 		log.Printf("Error generating token: %v", err)
-		http.Error(writer, "Cannot create token", http.StatusInternalServerError)
+		shared.SendError(writer, "Cannot create token", http.StatusInternalServerError)
 		return
 	}
 
