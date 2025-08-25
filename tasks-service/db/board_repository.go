@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
 	"github.com/chepyr/go-task-tracker/shared/models"
 	"github.com/google/uuid"
@@ -44,14 +45,35 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (*models.Board
 }
 
 func (r *BoardRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	query := `DELETE FROM boards WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	// check if exists
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)`
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("board with id %s does not exist", id)
+	}
+
+	query = `DELETE FROM boards WHERE id = $1`
+	_, err = r.db.ExecContext(ctx, query, id)
 	return err
 }
 
 func (r *BoardRepository) Update(ctx context.Context, board *models.Board) error {
-	query := `UPDATE boards SET title = $1, description = $2, updated_at = $3 WHERE id = $4`
-	_, err := r.db.ExecContext(ctx, query, board.Title, board.Description, board.UpdatedAt, board.ID)
+	var exists bool
+	query := `SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)`
+	err := r.db.QueryRowContext(ctx, query, board.ID).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("board with id %s does not exist", board.ID)
+	}
+
+	query = `UPDATE boards SET title = $1, description = $2, updated_at = $3 WHERE id = $4`
+	_, err = r.db.ExecContext(ctx, query, board.Title, board.Description, board.UpdatedAt, board.ID)
 	return err
 }
 
