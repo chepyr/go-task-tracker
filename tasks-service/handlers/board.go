@@ -70,7 +70,7 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request, boardID st
 		return
 	}
 
-	if err := h.BoardRepo.Delete(ctx, board.ID); err != nil {
+	if err := h.BoardRepo.Delete(ctx, board.ID.String()); err != nil {
 		shared.SendError(w, "Failed to delete board", http.StatusInternalServerError)
 		return
 	}

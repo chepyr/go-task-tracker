@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/chepyr/go-task-tracker/shared/models"
-	"github.com/google/uuid"
 )
 
 // defines methods for board db operations
@@ -27,6 +26,17 @@ func (r *BoardRepository) Create(ctx context.Context, board *models.Board) error
 	query := `INSERT INTO boards (id, owner_id, title, description, created_at, updated_at)
 	 VALUES ($1, $2, $3, $4, $5, $6)`
 
+	// check title
+	if board.Title == "" {
+		return fmt.Errorf("board title cannot be empty")
+	}
+	if len(board.Title) > 100 {
+		return fmt.Errorf("board title cannot exceed 500 characters")
+	}
+	if len(board.Description) > 500 {
+		return fmt.Errorf("board description cannot exceed 500 characters")
+	}
+
 	_, err := r.db.ExecContext(
 		ctx, query, board.ID, board.OwnerID, board.Title, board.Description,
 		board.CreatedAt, board.UpdatedAt)
@@ -44,7 +54,7 @@ func (r *BoardRepository) GetByID(ctx context.Context, id string) (*models.Board
 	return board, err
 }
 
-func (r *BoardRepository) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *BoardRepository) Delete(ctx context.Context, id string) error {
 	// check if exists
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM boards WHERE id = $1)`

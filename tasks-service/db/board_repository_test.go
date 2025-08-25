@@ -9,159 +9,221 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestTaskRepository_CreateAndGetByID(t *testing.T) {
+func TestBoardRepository_CreateAndGetByID(t *testing.T) {
 	dbx := setupTasksDB(t)
 	defer dbx.Close()
-	repo := NewTaskRepository(dbx)
+	repo := NewBoardRepository(dbx)
 
 	ownerID := uuid.New()
-	board := insertBoard(t, dbx, ownerID)
-
-	now := time.Now().UTC()
-	task := &models.Task{
-		ID:          uuid.New(),
-		BoardID:     board.ID,
-		Title:       "Task 1",
-		Description: "Task description",
-		Status:      "todo",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	board := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		Title:     "Test Board",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
-	// Test Create
-	if err := repo.Create(context.Background(), task); err != nil {
-		t.Fatalf("Create task: %v", err)
+	if err := repo.Create(context.Background(), board); err != nil {
+		t.Fatalf("Create board: %v", err)
 	}
 
-	// Test GetByID
-	got, err := repo.GetByID(context.Background(), task.ID.String())
+	created, err := repo.GetByID(context.Background(), board.ID.String())
 	if err != nil {
-		t.Fatalf("GetByID: %v", err)
+		t.Fatalf("GetByID after create: %v", err)
 	}
-	if got.ID != task.ID || got.BoardID != task.BoardID || got.Title != task.Title ||
-		got.Description != task.Description || got.Status != task.Status {
-		t.Errorf("GetByID returned incorrect data: got %+v, want %+v", got, task)
+
+	if created.ID != board.ID || created.Title != board.Title || created.OwnerID != board.OwnerID {
+		t.Errorf("Created board does not match: got %+v, want %+v", created, board)
 	}
 }
 
-// update and delete
-func TestBoardRepository_Update_Delete(t *testing.T) {
+func TestBoardRepository_GetByInvalidID(t *testing.T) {
 	dbx := setupTasksDB(t)
 	defer dbx.Close()
-	repo := NewTaskRepository(dbx)
+	repo := NewBoardRepository(dbx)
+
+	_, err := repo.GetByID(context.Background(), "invalid-uuid")
+	if err == nil {
+		t.Fatal("Expected error for invalid UUID, got nil")
+	}
+}
+
+func TestBoardRepository_Delete(t *testing.T) {
+	dbx := setupTasksDB(t)
+	defer dbx.Close()
+	repo := NewBoardRepository(dbx)
 
 	ownerID := uuid.New()
-	board := insertBoard(t, dbx, ownerID)
-
-	now := time.Now().UTC()
-	task := &models.Task{
-		ID:          uuid.New(),
-		BoardID:     board.ID,
-		Title:       "Task 1",
-		Description: "Task description",
-		Status:      "todo",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	board := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		Title:     "Board to Delete",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
-	if err := repo.Create(context.Background(), task); err != nil {
-		t.Fatalf("Create task: %v", err)
+	if err := repo.Create(context.Background(), board); err != nil {
+		t.Fatalf("Create board: %v", err)
 	}
 
-	// Update
-	task.Title = "Updated Task"
-	task.Status = "in-progress"
-	task.UpdatedAt = time.Now().UTC()
-	if err := repo.Update(context.Background(), task); err != nil {
-		t.Fatalf("Update task: %v", err)
+	if err := repo.Delete(context.Background(), board.ID.String()); err != nil {
+		t.Fatalf("Delete board: %v", err)
 	}
 
-	updated, err := repo.GetByID(context.Background(), task.ID.String())
+	_, err := repo.GetByID(context.Background(), board.ID.String())
+	if err == nil {
+		t.Fatal("Expected error for deleted board, got nil")
+	}
+}
+
+func TestBoardRepository_Update(t *testing.T) {
+	dbx := setupTasksDB(t)
+	defer dbx.Close()
+	repo := NewBoardRepository(dbx)
+
+	ownerID := uuid.New()
+	board := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		Title:     "Board to Update",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	if err := repo.Create(context.Background(), board); err != nil {
+		t.Fatalf("Create board: %v", err)
+	}
+
+	board.Title = "Updated Title"
+	board.Description = "Updated Description"
+	board.UpdatedAt = time.Now().UTC()
+
+	if err := repo.Update(context.Background(), board); err != nil {
+		t.Fatalf("Update board: %v", err)
+	}
+
+	updated, err := repo.GetByID(context.Background(), board.ID.String())
 	if err != nil {
 		t.Fatalf("GetByID after update: %v", err)
 	}
-	if updated.Title != "Updated Task" || updated.Status != "in-progress" {
-		t.Errorf("Update did not persist changes: got %+v", updated)
-	}
 
-	// Delete
-	if err := repo.Delete(context.Background(), task.ID.String()); err != nil {
-		t.Fatalf("Delete task: %v", err)
-	}
-	_, err = repo.GetByID(context.Background(), task.ID.String())
-	if err == nil {
-		t.Fatal("Expected error when getting deleted task, got nil")
+	if updated.Title != "Updated Title" || updated.Description != "Updated Description" {
+		t.Errorf("Board not updated correctly: got %+v", updated)
 	}
 }
 
-func TestBoardRepository_Create_InvalidBoardID(t *testing.T) {
+func TestBoardRepository_ListByUserID(t *testing.T) {
 	dbx := setupTasksDB(t)
 	defer dbx.Close()
-	repo := NewTaskRepository(dbx)
-
-	now := time.Now().UTC()
-	task := &models.Task{
-		ID:          uuid.New(),
-		BoardID:     uuid.New(), // Non-existent board ID
-		Title:       "Task 1",
-		Description: "Task description",
-		Status:      "todo",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
-
-	err := repo.Create(context.Background(), task)
-	if err == nil {
-		t.Fatal("Expected error when creating task with non-existent board_id, got nil")
-	}
-}
-
-func TestBoardRepository_Update_Delete_InvalidBoardID(t *testing.T) {
-	dbx := setupTasksDB(t)
-	defer dbx.Close()
-	repo := NewTaskRepository(dbx)
+	repo := NewBoardRepository(dbx)
 
 	ownerID := uuid.New()
-	board := insertBoard(t, dbx, ownerID)
-
-	now := time.Now().UTC()
-	task := &models.Task{
-		ID:          uuid.New(),
-		BoardID:     board.ID,
-		Title:       "Task 1",
-		Description: "Task description",
-		Status:      "todo",
-		CreatedAt:   now,
-		UpdatedAt:   now,
+	board1 := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		Title:     "Board 1",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	board2 := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   ownerID,
+		Title:     "Board 2",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 
-	if err := repo.Create(context.Background(), task); err != nil {
-		t.Fatalf("Create task: %v", err)
+	if err := repo.Create(context.Background(), board1); err != nil {
+		t.Fatalf("Create board1: %v", err)
+	}
+	if err := repo.Create(context.Background(), board2); err != nil {
+		t.Fatalf("Create board2: %v", err)
 	}
 
-	// Update with invalid BoardID
-	task.BoardID = uuid.New() // Non-existent board ID
-	task.UpdatedAt = time.Now().UTC()
-	err := repo.Update(context.Background(), task)
-	if err == nil {
-		t.Fatal("Expected error when updating task with invalid board_id, got nil")
+	boards, err := repo.ListByUserID(context.Background(), ownerID.String())
+	if err != nil {
+		t.Fatalf("ListByUserID: %v", err)
 	}
 
-	// Delete with invalid ID
-	err = repo.Delete(context.Background(), uuid.New().String())
-	if err == nil {
-		t.Fatal("Expected error when deleting task with invalid id, got nil")
+	if len(boards) != 2 {
+		t.Errorf("Expected 2 boards, got %d", len(boards))
 	}
 }
 
-func TestBoardRepository_GetByID_NonExistent(t *testing.T) {
+func TestBoardRepository_Delete_NonExistent(t *testing.T) {
 	dbx := setupTasksDB(t)
 	defer dbx.Close()
-	repo := NewTaskRepository(dbx)
+	repo := NewBoardRepository(dbx)
 
-	// GetByID for non-existent task
-	_, err := repo.GetByID(context.Background(), uuid.New().String())
+	err := repo.Delete(context.Background(), uuid.New().String())
 	if err == nil {
-		t.Fatal("Expected error when getting non-existent task, got nil")
+		t.Fatal("Expected error when deleting non-existent board, got nil")
+	}
+}
+
+func TestBoardRepository_Update_NonExistent(t *testing.T) {
+	dbx := setupTasksDB(t)
+	defer dbx.Close()
+	repo := NewBoardRepository(dbx)
+
+	board := &models.Board{
+		ID:        uuid.New(),
+		OwnerID:   uuid.New(),
+		Title:     "Non-existent Board",
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+
+	err := repo.Update(context.Background(), board)
+	if err == nil {
+		t.Fatal("Expected error when updating non-existent board, got nil")
+	}
+}
+
+// invalid title & description length
+func TestBoardRepository_Create_InvalidData(t *testing.T) {
+	dbx := setupTasksDB(t)
+	defer dbx.Close()
+	repo := NewBoardRepository(dbx)
+
+	ownerID := uuid.New()
+	boardEmptyTitle := &models.Board{
+		ID:          uuid.New(),
+		OwnerID:     ownerID,
+		Title:       "", // invalid empty title
+		Description: "Valid Description",
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+
+	err := repo.Create(context.Background(), boardEmptyTitle)
+	if err == nil {
+		t.Fatal("Expected error when creating board with invalid data, got nil")
+	}
+
+	boardLongTitle := &models.Board{
+		ID:          uuid.New(),
+		OwnerID:     ownerID,
+		Title:       string(make([]byte, 101)), // invalid title > 100 chars
+		Description: "Valid Description",
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	err = repo.Create(context.Background(), boardLongTitle)
+	if err == nil {
+		t.Fatal("Expected error when creating board with too long title, got nil")
+	}
+
+	boardLongDesc := &models.Board{
+		ID:          uuid.New(),
+		OwnerID:     ownerID,
+		Title:       "Valid Title",
+		Description: string(make([]byte, 501)), // invalid description > 500 chars
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+	}
+	err = repo.Create(context.Background(), boardLongDesc)
+	if err == nil {
+		t.Fatal("Expected error when creating board with too long description, got nil")
 	}
 }
